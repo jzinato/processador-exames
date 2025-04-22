@@ -760,13 +760,13 @@ if uploaded_file is not None:
             )
         
         st.success("Arquivo processado com sucesso!")
-        st.rerun()
+        # Remover esta linha: st.rerun()
         
     except Exception as e:
         st.error(f"Erro ao processar o arquivo: {str(e)}")
 
 # Criar abas
-tabs = st.tabs(["Exame Atual", "Histórico", "Gráficos"])
+tabtabs = st.tabs(["Exame Atual", "Histórico", "Gráficos"])
 
 # Aba de Exame Atual
 with tabs[0]:
