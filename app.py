@@ -628,11 +628,22 @@ with st.sidebar:
         st.markdown(f"**Data da Coleta:** {st.session_state.patient_info['collectionDate']}")
 
 # Processar arquivo enviado
+# Processar arquivo enviado
 if uploaded_file is not None:
     try:
-        # Para o exemplo, vamos apenas ler o texto do arquivo
-        # Em um caso real, você usaria uma biblioteca como PyPDF2
-        text_content = StringIO(uploaded_file.getvalue().decode("utf-8")).read()
+        # Verificar tipo de arquivo
+        if uploaded_file.name.endswith('.pdf'):
+            # Processar arquivo PDF
+            import PyPDF2
+            from io import BytesIO
+            
+            pdf_reader = PyPDF2.PdfReader(BytesIO(uploaded_file.getvalue()))
+            text_content = ""
+            for page in pdf_reader.pages:
+                text_content += page.extract_text()
+        else:
+            # Processar arquivo de texto
+            text_content = StringIO(uploaded_file.getvalue().decode("utf-8")).read()
         
         patient_info, exam_data = process_pdf_text(text_content)
         
