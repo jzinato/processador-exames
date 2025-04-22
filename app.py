@@ -10,6 +10,11 @@ from io import StringIO
 import plotly.express as px
 import plotly.graph_objects as go
 from PIL import Image
+# Adicione estas linhas ao início do arquivo, junto com os outros imports
+import io
+from docx import Document
+from docx.shared import Pt, Cm, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # Configuração da página
 st.set_page_config(
@@ -602,7 +607,95 @@ def show_graphs():
             st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Selecione parâmetros acima para visualizar gráficos.")
-
+# Função para gerar documento Word
+def generate_word_report(patient_info, exam_data):
+    # Criar um novo documento
+    doc = Document()
+    
+    # Configurar estilo do documento
+    style = doc.styles['Normal']
+    style.font.name = 'Arial'
+    style.font.size = Pt(11)
+    
+    # Adicionar cabeçalho
+    header = doc.add_heading('RELATÓRIO DE EXAMES MÉDICOS', level=1)
+    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Informações do paciente
+    doc.add_paragraph()
+    doc.add_paragraph(f"Paciente: {patient_info['name']}")
+    doc.add_paragraph(f"Data da coleta: {patient_info['collectionDate']}")
+    doc.add_paragraph()
+    
+    # Adicionar linha horizontal
+    doc.add_paragraph().add_run('_' * 80).bold = True
+    
+    # Função para adicionar uma seção de exames
+    def add_exam_section(title, items):
+        if not items:
+            return
+            
+        doc.add_heading(title, level=2)
+        
+        # Adicionar tabela
+        table = doc.add_table(rows=1, cols=2)
+        table.style = 'Table Grid'
+        
+        # Cabeçalhos da tabela
+        header_cells = table.rows[0].cells
+        header_cells[0].text = "Exame"
+        header_cells[1].text = "Resultado"
+        
+        # Formatar cabeçalhos
+        for cell in header_cells:
+            cell.paragraphs[0].runs[0].bold = True
+            
+        # Adicionar resultados
+        for item in items:
+            row_cells = table.add_row().cells
+            row_cells[0].text = item['name']
+            
+            # Adicionar valor com formatação para anormais
+            result_paragraph = row_cells[1].paragraphs[0]
+            result_run = result_paragraph.add_run(item['value'])
+            
+            if item.get('isAbnormal', False):
+                result_run.bold = True
+                result_run.font.color.rgb = RGBColor(192, 0, 0)  # Vermelho
+                
+            # Adicionar nota se for calculado
+            if item.get('isCalculated', False):
+                calc_run = result_paragraph.add_run(" (calculado)")
+                calc_run.italic = True
+                calc_run.font.size = Pt(9)
+    
+        doc.add_paragraph()
+    
+    # Adicionar cada seção de exames
+    add_exam_section("Hemograma", exam_data['Hemograma'])
+    add_exam_section("Bioquímica", exam_data['Bioquímica'])
+    add_exam_section("Hormonais", exam_data['Hormonais'])
+    add_exam_section("Outros Exames", exam_data['Outros'])
+    
+    # Adicionar exames de imagem
+    if exam_data['Imagem']:
+        doc.add_heading("Exames de Imagem", level=2)
+        for item in exam_data['Imagem']:
+            p = doc.add_paragraph(style='List Bullet')
+            p.add_run(f"{item['name']}: ").bold = True
+            p.add_run(item['value'])
+    
+    # Adicionar rodapé
+    doc.add_paragraph()
+    footer = doc.add_paragraph("Relatório gerado automaticamente pelo Processador de Exames Médicos")
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Salvar documento em memória
+    docx_stream = io.BytesIO()
+    doc.save(docx_stream)
+    docx_stream.seek(0)
+    
+    return docx_stream
 # Função para gerar PDF para download
 def create_download_link(content, filename):
     b64 = base64.b64encode(content.encode()).decode()
@@ -678,12 +771,24 @@ tabs = st.tabs(["Exame Atual", "Histórico", "Gráficos"])
 # Aba de Exame Atual
 with tabs[0]:
     if st.session_state.current_exam:
-        # Botão para exportar como PDF
-        # (Em uma implementação real, usaria uma biblioteca para gerar PDF)
-        if st.button("Exportar Relatório", key="export_current"):
-            report_text = f"RELATÓRIO DE EXAMES\n\nPaciente: {st.session_state.patient_info['name']}\nData: {st.session_state.patient_info['collectionDate']}\n\n"
-            # Código para gerar conteúdo texto do relatório
-            st.markdown(create_download_link(report_text, "relatorio_exame.txt"), unsafe_allow_html=True)
+        # Botões para exportação
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("Exportar como Texto", key="export_text"):
+                report_text = f"RELATÓRIO DE EXAMES\n\nPaciente: {st.session_state.patient_info['name']}\nData: {st.session_state.patient_info['collectionDate']}\n\n"
+                # Código para gerar conteúdo texto do relatório
+                st.markdown(create_download_link(report_text, "relatorio_exame.txt"), unsafe_allow_html=True)
+                
+        with col2:
+            if st.button("Exportar como Word", key="export_word"):
+                # Gerar documento Word
+                docx_file = generate_word_report(st.session_state.patient_info, st.session_state.current_exam)
+                
+                # Converter para base64 para download
+                b64 = base64.b64encode(docx_file.getvalue()).decode()
+                href = f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}" download="relatorio_exame_{st.session_state.patient_info["collectionDate"].replace("/", "-")}.docx">Baixar Relatório Word</a>'
+                st.markdown(href, unsafe_allow_html=True)
         
         display_exam_results(st.session_state.current_exam)
     else:
