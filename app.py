@@ -766,7 +766,7 @@ if uploaded_file is not None:
         st.error(f"Erro ao processar o arquivo: {str(e)}")
 
 # Criar abas
-tabtabs = st.tabs(["Exame Atual", "Histórico", "Gráficos"])
+tabs = st.tabs(["Exame Atual", "Histórico", "Gráficos"])
 
 # Aba de Exame Atual
 with tabs[0]:
